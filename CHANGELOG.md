@@ -4,6 +4,13 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-11
+
+### Added
+- **Skill 02: Render & Assembly** (v2.4.0) — sequential headless rendering with mid-render Haiku 4.5 vision verification, per-scene abort on consecutive failures, pass-isolated render output folders, and Blender VSE assembly into final video deliverable. Six formal artist check-ins. Migrated from [TrevorHumble/story-pipeline](https://github.com/TrevorHumble/story-pipeline) (formerly Production Skill 02 in the story analysis pipeline).
+- Reference scripts: `render_scene.py` (per-scene headless render), `render_all.sh` (batch wrapper), `assemble_vse.py` (VSE timeline assembly).
+- `skills/scripts/` directory for reference implementations shared across skills.
+
 ## [0.1.0] — 2026-05-11
 
 ### Added
