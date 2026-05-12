@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Blender autosaves (in case anyone drops .blend files in here)
+*.blend1
+*.blend2
+
+# Python
+__pycache__/
+*.pyc
