@@ -15,6 +15,7 @@ These skills were extracted from production work on *Catalysis*, a short claymat
 | # | Skill | Version | Status | Summary |
 |---|---|---|---|---|
 | 01 | [Character Disassembly](skills/01_character_disassembly.md) | 1.0.0 | ✅ Stable | Build standalone severable body parts (hand, ear, fingertip) from a fully-rigged character. Independent mesh + trimmed armature per part. Source character stays untouched. |
+| 02 | [Render & Assembly](skills/02_render_and_assembly.md) | 2.4.0 | ✅ Stable | Sequential headless rendering with mid-render Haiku vision verification, per-scene abort, pass-isolated output folders, and VSE assembly into final video. |
 
 ## Repo conventions
 
@@ -32,7 +33,7 @@ These skills were extracted from production work on *Catalysis*, a short claymat
 
 ## Companion repo
 
-The story-side companion (Robert McKee analysis pipeline, screenplay critique skills) lives at [TrevorHumble/story-and-script-skills](https://github.com/TrevorHumble/story-and-script-skills). Together the two repos cover end-to-end pre-production-to-render for indie animated short film work.
+The story-side companion (Robert McKee analysis pipeline, FigJam beat board, scene scaffolding) lives at [TrevorHumble/story-pipeline](https://github.com/TrevorHumble/story-pipeline). Together the two repos cover end-to-end pre-production-to-render for indie animated short film work.
 
 ## Contributing
 
