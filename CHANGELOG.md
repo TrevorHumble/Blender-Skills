@@ -4,6 +4,11 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-12
+
+### Added
+- **Skill 03: Body Part Swap Setup** (v1.0.0) — companion to Skill 01. Covers how to take a pre-built body parts library and wire it into scene files with visibility keyframes that flip a character between intact and severed states. Documents the shared-action bug (duplicated armatures sharing Actions) and the Blender 5.1 save-crash workaround (one keyframe target per invocation). Proven on three *Catalysis* scenes (London, Black Void, Ballroom).
+
 ## [0.2.0] — 2026-05-11
 
 ### Added
