@@ -4,6 +4,11 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-15
+
+### Changed
+- **Skill 02: Render & Assembly** bumped to v2.5.0 — added "Vision check — implementation reference" section with full contracts a developer needs to implement the Haiku supervisor: `directors_notes.md` schema, expected-characters format, per-frame context bundle, Anthropic Messages API contract (system prompt + user message structure), EXR→PNG conversion code pattern, and error-handling matrix beyond timeout (rate-limits, 4xx auth, 5xx server, network, malformed responses). Closes implementation-readiness gaps flagged in review.
+
 ## [0.3.0] — 2026-05-12
 
 ### Added

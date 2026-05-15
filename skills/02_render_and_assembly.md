@@ -1,5 +1,7 @@
 # Skill 02 — Headless Rendering, Mid-Render Verification, and VSE Assembly
 
+> **v2.5.0 update (2026-05-15):** Added the "Vision check — implementation reference" section (after Step 3.5). Pins down everything a developer needs to implement the Haiku supervisor: `directors_notes.md` schema, expected-characters format, full API message contract, EXR→PNG conversion mechanics, error handling beyond timeout. Closes implementation-readiness gaps surfaced in review.
+
 > **v2.4.0 update (2026-05-10):** Render output now uses a pass-isolated folder structure (`renders/<pass_type>/<pass_instance>/<scene_label>/`) so multiple passes can coexist without overwriting. The `render_scene.py` engine override has been removed — scripts now respect the engine saved in the .blend file unless explicitly overridden via `--engine`. See "Render output folder structure" section below.
 
 > **Migrated from [TrevorHumble/story-pipeline](https://github.com/TrevorHumble/story-pipeline)** in v3.0.0 of that repo. This skill was originally Production Skill 02 in the story analysis pipeline. It lives here because it's a Blender rendering operation, not a story analysis step. The upstream pipeline's scene scaffolding phase produces the input files for this skill.
@@ -148,6 +150,188 @@ For each sample frame (frame relative to scene start, multiple of `SAMPLE_INTERV
    - FAIL -> increment consecutive_fails; if >= 3, abort scene
 6. **Cleanup:** if a temp PNG was created from EXR, delete it after the check
 7. **Network/timeout handling:** Haiku call has a 10-second hard timeout. Timeout = treat as PASS (don't punish render for transient API issues). Log the timeout for visibility.
+
+### Vision check — implementation reference
+
+This section pins down the contracts the workflow in Step 3.5 depends on. Developer-facing.
+
+#### `directors_notes.md` schema
+
+Lives at `<project>/directors_notes.md` (project root, next to the `Scenes/` folder). YAML front-matter per scene, separated by `---`. Schema:
+
+```yaml
+---
+scene_label: Act.1-Scene.5-Beach           # must match the .blend filename minus extension + " - complete" suffix
+description: >
+  Florence lands on a beach after flight. Sebastian meets her, charms her,
+  extends his hand. She takes it.
+expected_characters:
+  - name: Florence
+    collection: fbp_Florence_BodyParts     # collection name in the .blend (for grounding)
+    presence: full                         # full | partial | offscreen
+  - name: Sebastian
+    collection: Sebastian
+    presence: full
+expected_environment: outdoor beach, sand, ocean visible
+allowed_edge_states:
+  - frame_start_blank_ok: false            # frame 1 should NOT be blank
+  - frame_end_blank_ok: false              # last frame should NOT be blank
+  - characters_offscreen_allowed: []       # list of frame ranges where named characters may be off-camera; empty = none
+notes_for_supervisor: |
+  Optional free-text. Mention deliberate visual states the supervisor should NOT flag.
+  Example: "Workbench clay-look is intentional; do not flag flat shading as broken materials."
+---
+scene_label: Act.1-Scene.2-BakedBean
+...
+```
+
+Required fields: `scene_label`, `description`, `expected_characters`. Everything else is optional with sensible defaults.
+
+#### Expected-characters format — what's sent to Haiku
+
+Each entry boils down to **one human-readable line** for the prompt: `"<name> (description if useful): <presence>"`. The collection name is metadata for the pipeline (e.g. to verify the collection exists in the .blend during pre-flight), not sent to Haiku — vision models don't reason about Blender collection names.
+
+Example payload line to Haiku: `"Florence (the protagonist): full presence expected"`, `"Sebastian (man with sunglasses, sarong): full presence expected"`.
+
+`presence: offscreen` removes the character from the expected-presence list for that scene (don't flag them as missing).
+
+#### Per-frame inference-context bundle
+
+The pipeline assembles this dict before each Haiku call:
+
+```python
+context = {
+    "scene_label":        "Act.1-Scene.5-Beach",
+    "scene_description":  "<one-sentence from directors_notes>",
+    "expected_characters": [
+        "Florence (protagonist): full presence expected",
+        "Sebastian (man with sunglasses, sarong): full presence expected",
+    ],
+    "frame_number":       125,
+    "total_frames":       250,
+    "frame_position":     "midpoint",        # auto: start | early | midpoint | late | end
+    "render_engine":      "BLENDER_WORKBENCH",
+    "render_engine_note": "Workbench clay-look — flat shading is intentional",
+    "resolution":         "960x540 (50% pass)",
+    "resolution_note":    "Animatic resolution; do not flag softness or blockiness",
+    "edge_state_hints":   "<derived from allowed_edge_states for this frame's position>",
+    "extra_notes":        "<from notes_for_supervisor, if present>",
+}
+```
+
+All seven fields come from data already present in the pipeline:
+- `scene_label` ← scene filename
+- `scene_description`, `expected_characters`, `extra_notes` ← `directors_notes.md`
+- `frame_number`, `total_frames`, `frame_position` ← render loop state
+- `render_engine`, `resolution` ← scene's render settings
+- `*_note` fields ← derived from engine/resolution (lookup table in the pipeline)
+- `edge_state_hints` ← derived from `allowed_edge_states` + current `frame_position`
+
+#### API message contract
+
+Single user message with one image. Use the Anthropic Messages API directly (not the SDK's wrapper — keeps the implementation portable).
+
+```python
+system = """You are a render-correctness supervisor for an indie animated film.
+Your only job is to flag MECHANICAL failures in rendered frames. You do NOT
+judge poses, framing, expression, mood, lighting quality, or any creative
+choices. Those are the artist's domain.
+
+FLAG these mechanical failures:
+- Completely black or empty frames (unless the scene description indicates that's intentional)
+- Named expected characters totally absent from the frame
+- Geometry that's obviously broken (mesh exploded, character melted, body parts at wildly wrong scale)
+- Characters at obviously wrong scale (e.g., 10x normal size relative to environment)
+
+DO NOT FLAG:
+- Pose quality, gesture choices, or "the artist would do this differently"
+- Framing or composition
+- Expression, mood, lighting tone
+- Soft/blocky resolution (this is an animatic at low resolution)
+- Flat shading (this is Workbench clay-look)
+- Empty backgrounds (set dressing may be deferred)
+- Anything that requires creative judgment
+
+Output format — exactly one line, no other text:
+PASS
+or
+FAIL: <one-sentence reason naming the specific mechanical failure>"""
+
+user = f"""Scene: {ctx['scene_label']}
+What happens in this scene: {ctx['scene_description']}
+Expected characters: {', '.join(ctx['expected_characters'])}
+Frame: {ctx['frame_number']} of {ctx['total_frames']} ({ctx['frame_position']})
+Render engine: {ctx['render_engine']} — {ctx['render_engine_note']}
+Resolution: {ctx['resolution']} — {ctx['resolution_note']}
+{('Edge state: ' + ctx['edge_state_hints']) if ctx['edge_state_hints'] else ''}
+{('Note: ' + ctx['extra_notes']) if ctx['extra_notes'] else ''}
+
+Inspect the attached frame and respond with exactly PASS or FAIL: <reason>."""
+
+# Image goes in the user message content as an image block.
+response = client.messages.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=128,
+    system=system,
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": img_b64}},
+            {"type": "text", "text": user},
+        ],
+    }],
+    timeout=10.0,
+)
+```
+
+Output parsing: trim whitespace, lowercase the first 4 chars. If it starts with `pass` → PASS. If it starts with `fail` → FAIL (capture remainder of line as reason). Anything else → log as malformed and treat as PASS (don't punish the render for parse failures).
+
+#### EXR → PNG conversion mechanics
+
+For sample frames when render output is EXR / EXR multilayer:
+
+```python
+import os, tempfile, bpy
+
+def exr_frame_to_temp_png(exr_path: str, scene) -> str:
+    """Convert one EXR frame to a temp PNG using the scene's view transform.
+    Returns the temp PNG path. Caller deletes it after the vision check.
+    """
+    img = bpy.data.images.load(exr_path, check_existing=False)
+    try:
+        # Force the right pass for multilayer EXR
+        # (no-op for single-layer EXR)
+        if img.type == 'MULTILAYER':
+            img.render_slots.active_index = 0   # beauty/Combined is slot 0 by convention
+        # save_render uses the scene's view transform (tonemap HDR -> 8-bit)
+        # raw save() would NOT apply view transform and would clip to black/white
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tmp.close()
+        img.save_render(filepath=tmp.name, scene=scene)
+        return tmp.name
+    finally:
+        bpy.data.images.remove(img)
+```
+
+For PNG/JPEG output: use the rendered file directly, no conversion. The pipeline branches on `scene.render.image_settings.file_format`.
+
+Cleanup: after the Haiku call returns (success or failure), `os.unlink(temp_png_path)` if a temp was created.
+
+#### Error handling beyond timeout
+
+| Error class | Action | Log entry |
+|---|---|---|
+| **Timeout** (>10s) | Treat as PASS. Continue. | `vision_check timeout @ frame N — treated as PASS` |
+| **HTTP 429 (rate limit)** | Backoff: wait 5s, retry once. If still 429, treat as PASS. | `vision_check rate-limited @ frame N — retried, treated as PASS` |
+| **HTTP 5xx (server error)** | Treat as PASS. Continue. | `vision_check 5xx @ frame N — treated as PASS` |
+| **HTTP 4xx (auth/permission)** | **STOP THE WHOLE RUN.** Misconfigured API key, not transient. | `vision_check auth error @ frame N — STOPPING RUN` |
+| **Network/connection error** | Treat as PASS. Continue. | `vision_check network error @ frame N — treated as PASS` |
+| **Malformed response** (not PASS/FAIL) | Treat as PASS. Continue. | `vision_check parse error @ frame N — response: <first 100 chars>` |
+| **Repeated PASS-by-default** (>5 consecutive) | Surface to artist at next CI-3 checkpoint. The supervisor is silently degraded; the artist should know. | `vision_check repeatedly defaulting to PASS — supervisor may be unavailable` |
+
+Rationale: never let the supervisor block production work on transient API issues, but stop hard on misconfiguration (which is the only error class the artist actually needs to fix before continuing).
+
+---
 
 ### Step 3.6 — Post-render file-system verification (per scene)
 

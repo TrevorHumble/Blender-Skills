@@ -15,7 +15,7 @@ These skills were extracted from production work on *Catalysis*, a short claymat
 | # | Skill | Version | Status | Summary |
 |---|---|---|---|---|
 | 01 | [Character Disassembly](skills/01_character_disassembly.md) | 1.0.0 | ✅ Stable | Build standalone severable body parts (hand, ear, fingertip) from a fully-rigged character. Independent mesh + trimmed armature per part. Source character stays untouched. |
-| 02 | [Render & Assembly](skills/02_render_and_assembly.md) | 2.4.0 | ✅ Stable | Sequential headless rendering with mid-render Haiku vision verification, per-scene abort, pass-isolated output folders, and VSE assembly into final video. |
+| 02 | [Render & Assembly](skills/02_render_and_assembly.md) | 2.5.0 | ✅ Stable | Sequential headless rendering with mid-render Haiku vision verification, per-scene abort, pass-isolated output folders, and VSE assembly into final video. |
 | 03 | [Body Part Swap Setup](skills/03_body_part_swap_setup.md) | 1.0.0 | ✅ Stable | Companion to Skill 01. Append the body parts library into scene files and keyframe a clean visibility swap between intact and severed states. Documents the shared-action bug and a Blender 5.1 save-crash workaround. |
 
 ## Repo conventions
